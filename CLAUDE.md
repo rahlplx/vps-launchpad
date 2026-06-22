@@ -22,11 +22,18 @@ Every PR must carry exactly one `hitl:` label (`hitl:auto`, `hitl:review`, `hitl
 
 ## CI checks on every PR
 
-Three checks run automatically (`.github/workflows/hitl-governance.yml`):
+Two workflows run on PRs (`.github/workflows/`):
 
+**hitl-governance.yml** (original):
 1. **HITL label required** — exactly one `hitl:*` label must be present
 2. **Gitleaks secrets scan** — blocks any committed credentials
 3. **AGENTS.md check** — every new directory must contain an `AGENTS.md`
+
+**full-pipeline.yml** (extended):
+4. **ShellCheck** — lints all `.sh` scripts
+5. **Docker compose validation** — verifies R08 resource limits on all compose files
+6. **Port map consistency** — warns if compose/firewall changes lack port map update (R05)
+7. **Pipeline telemetry** — collects CI metrics as JSON snapshots
 
 ## Governance rules (governance/rules/core-rules.md)
 
@@ -47,6 +54,10 @@ Each directory has its own `AGENTS.md` that overrides or extends root-level perm
 | `plugins/{name}/` | Coolify plugins, integrations | REVIEW (config), BLOCK (deploy) |
 | `ports/mappings/` | Port allocation truth table | REVIEW (internal), BLOCK (public/UFW) |
 | `governance/` | Rules, policies, checklists | REVIEW (via PR), BLOCK (modify agents/hitl/gates.md) |
+| `plugins/mcp-ssh/` | MCP SSH Manager for VPS access | REVIEW (config), BLOCK (install, SSH credentials) |
+| `plugins/telemetry/` | Netdata + MLflow observability | REVIEW (config), BLOCK (deploy on VPS) |
+| `plugins/retro/` | Weekly retro + evolution pipeline | AUTO (generate retro), REVIEW (propose rule changes) |
+| `infra/docker/` | Docker compose files for VPS | REVIEW (modify), BLOCK (deploy) |
 
 ## Conventions
 
@@ -73,6 +84,22 @@ Each directory has its own `AGENTS.md` that overrides or extends root-level perm
 3. Create a REVIEW PR — never push directly to `main`
 4. Tag the relevant HITL gate symbol in the PR description
 
+## Autonomous pipeline
+
+The repo implements a self-evolving feedback loop:
+
+```
+Observe (Netdata + MLflow + CI metrics)
+  → Act (MCP SSH + Claude Code hooks)
+    → Reflect (weekly retro → brainstorm/sessions/)
+      → Evolve (governance proposals → REVIEW PR)
+```
+
+- **MCP SSH Manager** (`plugins/mcp-ssh/`): 37 tools bridging Claude Code to VPS via SSH
+- **Telemetry** (`plugins/telemetry/`): Netdata (256MB) + MLflow (128MB, SQLite) = ~384MB total
+- **Retro pipeline** (`plugins/retro/`): Weekly automated retro via GitHub Actions cron, max 3 proposals per cycle
+- **Evolution**: Retro findings become governance rule PRs (always REVIEW gate)
+
 ## Port map
 
-The single source of truth for port allocation is `ports/mappings/master-port-map.md`. Public ports: 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (Coolify, temporary). All internal services (PostgreSQL 5432, PgBouncer 6432, KeyDB 6379, Qdrant 6333/6334, FastAPI 8080, SvelteKit 3000, Langfuse 4000) stay on Docker bridge network only.
+The single source of truth for port allocation is `ports/mappings/master-port-map.md`. Public ports: 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (Coolify, temporary). All internal services (PostgreSQL 5432, PgBouncer 6432, KeyDB 6379, Qdrant 6333/6334, FastAPI 8080, SvelteKit 3000, MLflow 5000) stay on Docker bridge network only.
