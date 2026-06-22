@@ -16,13 +16,13 @@
 
 ## Agent roles
 
-| Role | ID | Scope |
-|------|----|-------|
-| Architect | `agent:architect` | brainstorm/, docs/, governance/ |
-| DevOps Agent | `agent:devops` | infra/, ports/, plugins/ |
-| Security Agent | `agent:security` | governance/policies/, ports/exposed/ |
-| Eval Agent | `agent:eval` | agents/evals/ |
-| HITL Coordinator | `agent:hitl` | Cross-cutting — manages approval gates |
+| Role | ID | Scope | Tool allowlist |
+|------|----|-------|----------------|
+| Architect | `agent:architect` | brainstorm/, docs/, context/, governance/ | `agents/tools/architect.md` |
+| DevOps Agent | `agent:devops` | infra/, ports/, plugins/ | `agents/tools/devops.md` |
+| Security Agent | `agent:security` | governance/policies/, ports/ | `agents/tools/security.md` |
+| Eval Agent | `agent:eval` | agents/evals/ | `agents/tools/eval.md` |
+| HITL Coordinator | `agent:hitl` | Cross-cutting — manages approval gates | Read-only across all |
 
 ---
 
@@ -67,10 +67,17 @@ Agents may NOT use:
 
 ## Memory
 
-Agent context resets between sessions. Always read:
-1. `brainstorm/decisions/` for locked choices
-2. `governance/rules/` for current constraints
-3. The folder-level `AGENTS.md` for local scope
+Agent context resets between sessions. Follow `agents/memory/session-init.md` for load order.
+
+Always read first (in order):
+1. `CLAUDE.md` — session bootstrap and anti-hallucination rules
+2. `context/snapshot.md` — current VPS and project state
+3. `context/stack.md` — locked technology choices
+4. `context/decisions-index.md` — what is already decided
+5. `agents/tools/{your-role}.md` — your tool allowlist
+6. The folder-level `AGENTS.md` for local scope
+
+See `governance/policies/token-efficiency.md` for context budget policy.
 
 ---
 

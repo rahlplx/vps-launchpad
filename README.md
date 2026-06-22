@@ -11,13 +11,28 @@ A living system — not a static config dump. Every folder has its own `AGENTS.m
 
 ```
 vps-launchpad/
-├── brainstorm/       # Raw thinking, decisions, spikes — no polish required
-├── plugins/          # Coolify plugins, integrations, extension configs
-├── ports/            # Port map, exposure rules, firewall intent
-├── agents/           # Agent definitions, tools, HITL gates, evals
-├── governance/       # Rules, policies, approval checklists
-├── infra/            # Scripts, Docker configs, nginx, system setup
-└── docs/             # Architecture decisions, runbooks, diagrams
+├── CLAUDE.md              # Session bootstrap — AI agents read this first
+├── context/               # Compressed always-loaded state (snapshot, stack, decisions)
+├── agents/
+│   ├── hitl/              # HITL gate master definitions
+│   ├── tools/             # Per-role tool allowlists (sub-agent isolation)
+│   ├── memory/            # Session-init protocol + context budget policy
+│   ├── prompts/           # Reusable templates (brainstorm, PR, handoff, spike)
+│   └── evals/             # Baseline eval questions for agent regression testing
+├── brainstorm/
+│   ├── sessions/          # Raw thinking, timestamped
+│   ├── decisions/         # Promoted locked decisions (human-approved)
+│   └── spikes/            # Time-boxed technical explorations (max 2h)
+├── governance/
+│   ├── rules/             # Hard governance rules (R01–R08)
+│   ├── policies/          # Operational policies (token efficiency, etc.)
+│   └── checklists/        # PR and deploy checklists
+├── docs/
+│   ├── architecture/      # ADRs and system diagrams
+│   └── runbooks/          # Human-executed operational procedures
+├── infra/                 # Scripts, Docker configs, system setup (proposed, not executed)
+├── plugins/               # Coolify plugins, integrations
+└── ports/                 # Port map, exposure rules, firewall intent
 ```
 
 ## Core principles
@@ -32,12 +47,19 @@ vps-launchpad/
 
 | Goal | Go to |
 |------|-------|
-| Brainstorm a new idea | `brainstorm/sessions/` |
+| **Start a session (AI agent)** | `CLAUDE.md` → `context/snapshot.md` |
+| Check current VPS state | `context/snapshot.md` |
+| Check locked tech choices | `context/stack.md` |
+| Check what's already decided | `context/decisions-index.md` |
+| Brainstorm a new idea | `brainstorm/sessions/` (use `agents/prompts/brainstorm.md`) |
+| Run a technical spike | `brainstorm/spikes/` (use `agents/prompts/spike.md`) |
+| Promote a decision | `brainstorm/decisions/` via REVIEW PR |
 | Add a plugin/integration | `plugins/` + its `AGENTS.md` |
 | Map a new port | `ports/mappings/` |
-| Define an agent tool | `agents/tools/` |
-| Governance / approval | `governance/rules/` |
 | Infra scripts | `infra/scripts/` |
+| Governance / approval | `governance/rules/` |
+| Write a runbook | `docs/runbooks/` |
+| Run agent evals | `agents/evals/baseline.md` |
 
 ## HITL gate legend (used across all AGENTS.md files)
 
