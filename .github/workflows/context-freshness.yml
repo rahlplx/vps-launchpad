@@ -1,0 +1,97 @@
+name: Context Freshness Check
+
+on:
+  pull_request:
+    paths:
+      - 'infra/**'
+      - 'ports/**'
+      - 'plugins/**'
+
+jobs:
+  snapshot-freshness:
+    name: Warn if context/snapshot.md is stale
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Check snapshot.md age
+        run: |
+          SNAPSHOT="context/snapshot.md"
+          if [ ! -f "$SNAPSHOT" ]; then
+            echo "❌ context/snapshot.md is missing. Agents cannot run safely without it."
+            exit 1
+          fi
+
+          # Extract the "Last updated" date from snapshot.md
+          LAST_UPDATED=$(grep "^Last updated:" "$SNAPSHOT" | awk '{print $3}')
+          if [ -z "$LAST_UPDATED" ]; then
+            echo "⚠️  Cannot parse 'Last updated:' from context/snapshot.md. Ensure format is: 'Last updated: YYYY-MM-DD'"
+            exit 1
+          fi
+
+          TODAY=$(date +%Y-%m-%d)
+          SNAPSHOT_EPOCH=$(date -d "$LAST_UPDATED" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$LAST_UPDATED" +%s)
+          TODAY_EPOCH=$(date -d "$TODAY" +%s 2>/dev/null || date -j -f "%Y-%m-%d" "$TODAY" +%s)
+          AGE_DAYS=$(( (TODAY_EPOCH - SNAPSHOT_EPOCH) / 86400 ))
+
+          echo "context/snapshot.md was last updated: $LAST_UPDATED ($AGE_DAYS days ago)"
+
+          if [ "$AGE_DAYS" -gt 7 ]; then
+            echo "⚠️  WARNING: context/snapshot.md is $AGE_DAYS days old."
+            echo "   Infra changes with a stale snapshot risk agent hallucination."
+            echo "   Human should update context/snapshot.md to reflect current VPS state."
+            echo "   This is a WARNING only — PR is not blocked."
+          else
+            echo "✅ context/snapshot.md is fresh ($AGE_DAYS days old)"
+          fi
+
+  token-budget-check:
+    name: Check context file token budgets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check file sizes against token budgets
+        run: |
+          FAIL=0
+
+          check_budget() {
+            local file="$1"
+            local max_chars="$2"   # tokens * 4 chars/token (approximate)
+            local label="$3"
+
+            if [ ! -f "$file" ]; then
+              return
+            fi
+
+            actual=$(wc -c < "$file")
+            if [ "$actual" -gt "$max_chars" ]; then
+              echo "❌ $file exceeds budget: ${actual} chars (limit: ${max_chars} chars / ~$((max_chars/4)) tokens)"
+              FAIL=1
+            else
+              echo "✅ $file: ${actual} chars (~$((actual/4)) tokens, limit ~$((max_chars/4)))"
+            fi
+          }
+
+          # Budgets: max_chars = max_tokens * 4
+          check_budget "CLAUDE.md"                     2400  "session bootstrap (600 tokens)"
+          check_budget "context/snapshot.md"            1600  "snapshot (400 tokens)"
+          check_budget "context/stack.md"               1200  "stack (300 tokens)"
+          check_budget "context/decisions-index.md"     2000  "decisions index (500 tokens)"
+
+          # Check all AGENTS.md files
+          while IFS= read -r -d '' agents_file; do
+            check_budget "$agents_file" 1600 "AGENTS.md (400 tokens)"
+          done < <(find . -name "AGENTS.md" -not -path "./.git/*" -print0)
+
+          if [ "$FAIL" -eq 1 ]; then
+            echo ""
+            echo "❌ One or more context files exceed their token budget."
+            echo "   See governance/policies/token-efficiency.md for limits and rationale."
+            exit 1
+          else
+            echo ""
+            echo "✅ All context files within token budget"
+          fi

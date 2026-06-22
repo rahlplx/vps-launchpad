@@ -19,9 +19,10 @@
 | Folder | Purpose |
 |--------|---------|
 | `hitl/` | HITL gate definitions and approval workflows |
-| `tools/` | Tool specs — what each agent can call |
-| `memory/` | Persistent context patterns (not secrets) |
-| `evals/` | Eval questions for testing agent effectiveness |
+| `tools/` | Per-role tool allowlists — sub-agent isolation boundary |
+| `memory/` | Session-init protocol + context budget policy |
+| `prompts/` | Reusable templates for brainstorm, PR, handoff, spike |
+| `evals/` | Baseline eval questions for agent regression testing |
 
 ## Agent design principles
 
