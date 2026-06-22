@@ -37,10 +37,14 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
+      - name: Install Gitleaks
+        run: |
+          GITLEAKS_VERSION="8.21.2"
+          curl -sSfL "https://github.com/gitleaks/gitleaks/releases/download/v${GITLEAKS_VERSION}/gitleaks_${GITLEAKS_VERSION}_linux_x64.tar.gz" \
+            | tar -xz gitleaks
+          sudo mv gitleaks /usr/local/bin/gitleaks
       - name: Run Gitleaks
-        uses: gitleaks/gitleaks-action@v2
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: gitleaks detect --source . --redact --exit-code 1
 
   agents-md-check:
     name: AGENTS.md present in new folders
@@ -51,16 +55,21 @@ jobs:
           fetch-depth: 0
       - name: Check new directories have AGENTS.md
         run: |
-          # Get new directories added in this PR
-          NEW_DIRS=$(git diff --name-only origin/main...HEAD | grep '/' | xargs -I{} dirname {} | sort -u)
+          # Get directories from changed files, then filter to only truly NEW ones
+          CHANGED_DIRS=$(git diff --name-only origin/main...HEAD | grep '/' | xargs -I{} dirname {} | sort -u)
           MISSING=()
-          for dir in $NEW_DIRS; do
+          for dir in $CHANGED_DIRS; do
+            # Skip directories that already existed in origin/main
+            if git rev-parse --verify "origin/main:$dir" > /dev/null 2>&1; then
+              continue
+            fi
+            # This is a genuinely new directory — require AGENTS.md
             if [ -d "$dir" ] && [ ! -f "$dir/AGENTS.md" ]; then
               MISSING+=("$dir")
             fi
           done
           if [ ${#MISSING[@]} -gt 0 ]; then
-            echo "❌ Missing AGENTS.md in: ${MISSING[*]}"
+            echo "❌ Missing AGENTS.md in new directories: ${MISSING[*]}"
             exit 1
           else
             echo "✅ All new directories have AGENTS.md"

@@ -19,7 +19,7 @@ Role: Security audits, port exposure review, firewall policy proposals, secret s
 - UFW changes — 🔴 BLOCK (propose only)
 - Modifying `governance/rules/core-rules.md` — 🔴 BLOCK
 - Modifying `agents/hitl/gates.md` — 🔴 BLOCK
-- Any write to `ports/mappings/` without devops co-review
+- Any write to `ports/` — 🔴 BLOCK (propose changes via brainstorm sessions instead)
 
 ## Context to load at session start
 
