@@ -46,7 +46,7 @@ Each directory has its own `AGENTS.md` that overrides or extends root-level perm
 | `infra/scripts/` | System scripts, Docker configs | REVIEW (draft), BLOCK (execute on VPS) |
 | `plugins/{name}/` | Coolify plugins, integrations | REVIEW (config), BLOCK (deploy) |
 | `ports/mappings/` | Port allocation truth table | REVIEW (internal), BLOCK (public/UFW) |
-| `governance/` | Rules, policies, checklists | REVIEW (via PR), BLOCK (modify gates.md) |
+| `governance/` | Rules, policies, checklists | REVIEW (via PR), BLOCK (modify agents/hitl/gates.md) |
 
 ## Conventions
 
@@ -62,7 +62,7 @@ Each directory has its own `AGENTS.md` that overrides or extends root-level perm
 - Must include: Context, Options considered, Recommendation, Risks, Decision (human fills)
 
 **Docker compose files**:
-- Must include resource limits per R08: `deploy.resources.limits.memory` and `deploy.resources.limits.cpus`
+- Must include resource limits per R08: `deploy.resources.limits.memory` and `deploy.resources.limits.cpus` (or `mem_limit` and `cpus` shorthand)
 
 **Plugin folders** must contain: `AGENTS.md`, `README.md`, `config.example.yml`, `install.sh`, `test.sh`
 
@@ -75,4 +75,4 @@ Each directory has its own `AGENTS.md` that overrides or extends root-level perm
 
 ## Port map
 
-The single source of truth for port allocation is `ports/mappings/master-port-map.md`. Public ports: 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (Coolify, temporary). All internal services (PostgreSQL 5432, KeyDB 6379, Qdrant 6333/6334, FastAPI 8080, SvelteKit 3000) stay on Docker bridge network only.
+The single source of truth for port allocation is `ports/mappings/master-port-map.md`. Public ports: 22 (SSH), 80 (HTTP), 443 (HTTPS), 8000 (Coolify, temporary). All internal services (PostgreSQL 5432, PgBouncer 6432, KeyDB 6379, Qdrant 6333/6334, FastAPI 8080, SvelteKit 3000, Langfuse 4000) stay on Docker bridge network only.
