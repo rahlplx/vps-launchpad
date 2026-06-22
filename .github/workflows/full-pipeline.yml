@@ -1,0 +1,154 @@
+name: Full Pipeline — Build, Test, Deploy Gate
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, labeled]
+  push:
+    branches: [main]
+
+jobs:
+  # --- Stage 1: Governance checks (existing) ---
+  hitl-label:
+    name: HITL label check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - name: Check for HITL label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const hitlLabels = labels.filter(l => l.startsWith('hitl:'));
+            if (hitlLabels.length !== 1) {
+              core.setFailed(
+                `Expected exactly one hitl: label, found ${hitlLabels.length}.\n` +
+                'Valid: hitl:auto | hitl:review | hitl:block | hitl:needs-classification'
+              );
+            }
+
+  secrets-scan:
+    name: Secrets scan
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
+
+  agents-md:
+    name: AGENTS.md check
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check new directories
+        run: |
+          NEW_DIRS=$(git diff --name-only origin/main...HEAD | grep '/' | xargs -I{} dirname {} | sort -u)
+          MISSING=()
+          for dir in $NEW_DIRS; do
+            if [ -d "$dir" ] && [ ! -f "$dir/AGENTS.md" ]; then
+              MISSING+=("$dir")
+            fi
+          done
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "❌ Missing AGENTS.md in: ${MISSING[*]}"
+            exit 1
+          fi
+          echo "✅ All directories have AGENTS.md"
+
+  # --- Stage 2: Validation ---
+  validate-scripts:
+    name: Validate shell scripts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install shellcheck
+        run: sudo apt-get install -y shellcheck
+      - name: Lint shell scripts
+        run: |
+          find . -name '*.sh' -not -path './.git/*' | while read f; do
+            echo "Checking: $f"
+            shellcheck -x "$f" || true
+          done
+
+  validate-compose:
+    name: Validate Docker compose files
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check resource limits (R08)
+        run: |
+          FAIL=0
+          for f in $(find . -name 'docker-compose*.yml' -not -path './.git/*'); do
+            echo "Checking: $f"
+            if grep -q 'services:' "$f"; then
+              if ! grep -q 'memory:' "$f"; then
+                echo "❌ $f missing memory limit (R08)"
+                FAIL=1
+              fi
+              if ! grep -q 'cpus:' "$f"; then
+                echo "❌ $f missing cpus limit (R08)"
+                FAIL=1
+              fi
+            fi
+          done
+          [ "$FAIL" -eq 0 ] && echo "✅ All compose files have resource limits"
+          exit $FAIL
+
+  validate-ports:
+    name: Validate port map consistency
+    runs-on: ubuntu-latest
+    if: github.event_name == 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check port changes require port map update
+        run: |
+          CHANGED=$(git diff --name-only origin/main...HEAD 2>/dev/null || echo "")
+          HAS_PORT_CHANGE=$(echo "$CHANGED" | grep -E 'docker-compose|\.yml|ufw|firewall' || true)
+          HAS_PORT_MAP=$(echo "$CHANGED" | grep 'master-port-map' || true)
+          if [ -n "$HAS_PORT_CHANGE" ] && [ -z "$HAS_PORT_MAP" ]; then
+            echo "⚠️  Config files changed but master-port-map.md not updated (R05)"
+            echo "   Review whether port changes need port map update."
+          fi
+          echo "✅ Port map check complete"
+
+  # --- Stage 3: Telemetry snapshot ---
+  collect-metrics:
+    name: Collect pipeline metrics
+    runs-on: ubuntu-latest
+    if: always()
+    needs: [hitl-label, secrets-scan, agents-md, validate-scripts, validate-compose]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Record pipeline metrics
+        run: |
+          mkdir -p telemetry/snapshots
+          cat > telemetry/snapshots/ci-$(date +%Y%m%d-%H%M%S).json <<EOF
+          {
+            "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%SZ)",
+            "event": "${{ github.event_name }}",
+            "ref": "${{ github.ref }}",
+            "sha": "${{ github.sha }}",
+            "actor": "${{ github.actor }}",
+            "workflow": "full-pipeline",
+            "jobs": {
+              "hitl_label": "${{ needs.hitl-label.result }}",
+              "secrets_scan": "${{ needs.secrets-scan.result }}",
+              "agents_md": "${{ needs.agents-md.result }}",
+              "validate_scripts": "${{ needs.validate-scripts.result }}",
+              "validate_compose": "${{ needs.validate-compose.result }}"
+            }
+          }
+          EOF
+          echo "✅ Pipeline metrics recorded"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: pipeline-metrics
+          path: telemetry/snapshots/
+          retention-days: 30

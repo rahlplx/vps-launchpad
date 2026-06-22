@@ -1,0 +1,21 @@
+# Retro pipeline config — DO NOT commit real values
+retro:
+  schedule: "weekly"                    # weekly | biweekly | monthly
+  day: "sunday"                         # Day of week to run
+  lookback_days: 7
+
+  sources:
+    git_log: true
+    ci_metrics: true
+    telemetry_snapshots: true
+    incident_sessions: true
+
+  output:
+    dir: "brainstorm/sessions"
+    filename_pattern: "YYYY-MM-DD-retro-week-NN.md"
+
+  evolution:
+    auto_propose_rules: true            # Generate governance rule PRs
+    auto_propose_scripts: true          # Generate script improvement PRs
+    max_proposals_per_retro: 3          # Don't overwhelm with changes
+    require_human_approval: true        # Always REVIEW gate
