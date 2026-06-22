@@ -1,0 +1,67 @@
+name: HITL Gate Check
+
+on:
+  pull_request:
+    types: [opened, labeled, unlabeled, synchronize]
+
+jobs:
+  hitl-label-required:
+    name: Require HITL label
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check for HITL label
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const labels = context.payload.pull_request.labels.map(l => l.name);
+            const hitlLabels = labels.filter(l => l.startsWith('hitl:'));
+            if (hitlLabels.length === 0) {
+              core.setFailed(
+                'PR must have exactly one hitl: label.\n' +
+                'Valid labels: hitl:auto | hitl:review | hitl:block | hitl:needs-classification\n' +
+                'See agents/hitl/gates.md for guidance.'
+              );
+            } else if (hitlLabels.length > 1) {
+              core.setFailed(
+                `PR has multiple hitl: labels: ${hitlLabels.join(', ')}.\n` +
+                'Choose exactly one.'
+              );
+            } else {
+              console.log(`✅ HITL gate declared: ${hitlLabels[0]}`);
+            }
+
+  secrets-scan:
+    name: Scan for secrets
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Run Gitleaks
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  agents-md-check:
+    name: AGENTS.md present in new folders
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Check new directories have AGENTS.md
+        run: |
+          # Get new directories added in this PR
+          NEW_DIRS=$(git diff --name-only origin/main...HEAD | grep '/' | xargs -I{} dirname {} | sort -u)
+          MISSING=()
+          for dir in $NEW_DIRS; do
+            if [ -d "$dir" ] && [ ! -f "$dir/AGENTS.md" ]; then
+              MISSING+=("$dir")
+            fi
+          done
+          if [ ${#MISSING[@]} -gt 0 ]; then
+            echo "❌ Missing AGENTS.md in: ${MISSING[*]}"
+            exit 1
+          else
+            echo "✅ All new directories have AGENTS.md"
+          fi
