@@ -31,6 +31,11 @@
 
 ---
 
+| 5000 | MLflow | mlflow | LLM/agent observability (SQLite) |
+| 8500 | Reserved | — | Was Evidently, now available |
+
+---
+
 ## Reserved (future use)
 
 | Port | Intended Service | Notes |

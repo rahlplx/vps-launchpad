@@ -1,0 +1,107 @@
+name: Retro Pipeline — Weekly Retrospective
+
+on:
+  schedule:
+    - cron: '0 9 * * 0'  # Every Sunday at 09:00 UTC
+  workflow_dispatch:       # Manual trigger
+
+jobs:
+  collect-retro-data:
+    name: Collect retro data
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Gather git metrics
+        id: git-metrics
+        run: |
+          SINCE=$(date -d "-7 days" +%Y-%m-%d)
+          TODAY=$(date +%Y-%m-%d)
+          WEEK=$(date +%V)
+
+          COMMITS=$(git log --oneline --since="$SINCE" --no-merges | wc -l)
+          MERGES=$(git log --oneline --since="$SINCE" --merges | wc -l)
+          FILES_CHANGED=$(git log --since="$SINCE" --name-only --pretty=format: | sort -u | grep -c . || echo "0")
+
+          echo "since=$SINCE" >> "$GITHUB_OUTPUT"
+          echo "today=$TODAY" >> "$GITHUB_OUTPUT"
+          echo "week=$WEEK" >> "$GITHUB_OUTPUT"
+          echo "commits=$COMMITS" >> "$GITHUB_OUTPUT"
+          echo "merges=$MERGES" >> "$GITHUB_OUTPUT"
+          echo "files_changed=$FILES_CHANGED" >> "$GITHUB_OUTPUT"
+
+      - name: Generate retro session
+        run: |
+          SINCE="${{ steps.git-metrics.outputs.since }}"
+          TODAY="${{ steps.git-metrics.outputs.today }}"
+          WEEK="${{ steps.git-metrics.outputs.week }}"
+          COMMITS="${{ steps.git-metrics.outputs.commits }}"
+          MERGES="${{ steps.git-metrics.outputs.merges }}"
+          FILES="${{ steps.git-metrics.outputs.files_changed }}"
+
+          GIT_LOG=$(git log --oneline --since="$SINCE" --no-merges 2>/dev/null || echo "No commits")
+          MERGE_LOG=$(git log --oneline --since="$SINCE" --merges 2>/dev/null || echo "No merges")
+
+          OUTPUT="brainstorm/sessions/${TODAY}-retro-week-${WEEK}.md"
+
+          cat > "$OUTPUT" <<RETRO
+          # Session: Weekly Retro — Week $WEEK
+          Date: $TODAY
+          Agent: agent:architect (GitHub Actions)
+          Status: DRAFT
+
+          ---
+
+          ## Period: $SINCE to $TODAY
+
+          ## Summary
+          - Commits: $COMMITS
+          - Merges: $MERGES
+          - Files changed: $FILES
+
+          ## Commits
+          \`\`\`
+          $GIT_LOG
+          \`\`\`
+
+          ## Merges
+          \`\`\`
+          $MERGE_LOG
+          \`\`\`
+
+          ## Resource trends
+          > Pull from Netdata API or telemetry snapshots.
+
+          ## HITL gate review
+          > Were any AUTO actions that should have been REVIEW?
+          > Were any BLOCK actions that could safely be REVIEW?
+
+          ## Proposals (max 3)
+          1.
+          2.
+          3.
+
+          ## Decision
+          > _Human fills this after reviewing._
+          RETRO
+
+          echo "✅ Retro session generated: $OUTPUT"
+
+      - name: Create retro PR
+        run: |
+          WEEK="${{ steps.git-metrics.outputs.week }}"
+          TODAY="${{ steps.git-metrics.outputs.today }}"
+          BRANCH="retro/week-${WEEK}-${TODAY}"
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git checkout -b "$BRANCH"
+          git add brainstorm/sessions/
+          git commit -m "retro: weekly retrospective week $WEEK" || exit 0
+          git push origin "$BRANCH"
+
+          echo "Branch pushed: $BRANCH"
+          echo "Create PR manually or via gh CLI with hitl:review label"

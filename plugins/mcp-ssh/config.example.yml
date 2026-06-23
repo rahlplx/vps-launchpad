@@ -1,0 +1,26 @@
+# MCP SSH Manager — config reference
+# DO NOT commit real values. Copy to your Claude Code environment config.
+
+mcp_ssh_manager:
+  server:
+    name: "contabo-vps"
+    host: "13.140.188.74"
+    port: 22
+    username: "root"                    # Change to non-root user after hardening
+    auth:
+      type: "key"                       # "key" or "password" (key preferred)
+      private_key: "~/.ssh/contabo_vps" # Path to SSH private key
+      # passphrase: ""                  # If key is passphrase-protected
+
+  tool_groups:
+    core: true        # Always on: list, execute, upload, download, sync
+    devops: true      # Deployment, sudo, tunnels
+    database: true    # PostgreSQL/KeyDB dump and import
+    monitoring: true  # Health checks, log tailing, resource monitoring
+    backup: true      # Snapshot, sync, restore
+    security: true    # Host key management, profiles
+
+  defaults:
+    working_directory: "/opt"
+    timeout: 30                         # Command timeout in seconds
+    max_output_lines: 500

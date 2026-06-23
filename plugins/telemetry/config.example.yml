@@ -1,0 +1,24 @@
+# Telemetry stack config — DO NOT commit real values
+telemetry:
+  netdata:
+    url: "http://localhost:19999"
+    api_key: ""                        # Optional cloud connect token
+
+  mlflow:
+    url: "http://localhost:5000"
+    backend: "sqlite"                  # SQLite — no external DB needed
+    artifact_root: "/mlflow/artifacts"
+    experiment_name: "vps-launchpad"
+
+  snapshots:
+    retention_days: 30
+    interval_minutes: 60
+    output_dir: "telemetry/snapshots"
+
+  alerts:
+    ram_warning_gb: 16
+    ram_critical_gb: 20
+    cpu_warning_pct: 70
+    cpu_critical_pct: 90
+    disk_warning_pct: 80
+    disk_critical_pct: 90
